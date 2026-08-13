@@ -1,0 +1,54 @@
+---
+- name: Install node and npm
+  # replace with your host IP address
+  hosts: webservers
+  tasks:
+    - name: Update apt repo and cache
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+    - name: Install nodejs and npm
+      apt:
+        pkg:
+          - nodejs
+          - npm
+
+
+- name: Create new linux user for node app
+  # replace with your host IP address
+  hosts: webservers
+  tasks:
+    - name: Create linux user
+      user:
+      # replace with your username
+        name: Username
+        comment: Node User
+        group: admin
+
+
+- name: Deploy nodejs app
+  # replace with your host IP address
+  hosts: webservers
+  become: True
+  # replace with your username
+  become_user: Username
+  tasks:
+    - name: Unpack the nodejs file
+      unarchive:
+        # replace with your folder location
+        src: path_to_folder/nodejs-app-1.0.0.tgz
+        # replace with your folder location
+        dest: home/username
+    - name: Install dependencies
+      npm:
+        # replace with your folder location
+        path: home/username/package
+    - name: Start the application
+      command:
+        # replace with your folder location
+        chdir: home/username/package/app
+        cmd: node server
+      async: 1000
+      poll: 0
+    - name: Ensure app is running
+      shell: ps aux | grep node
+      register: app_status
+    - debug: msg={{app_status.stdout_lines}}

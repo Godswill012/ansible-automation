@@ -1,0 +1,29 @@
+# Secrets / sensitive vars
+project-vars
+**/project-vars
+*.pem
+*.key
+.aws/
+credentials
+
+# Terraform local/state files
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/terraform.tfvars
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor
+.vscode/
+.idea/
+
+# Ansible retry
+*.retry
+
+# Separate application repository
+nodejs-app/

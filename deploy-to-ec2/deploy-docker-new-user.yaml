@@ -1,0 +1,78 @@
+---
+- name: Wait for SSH connection to be available
+  hosts: tag_Environment_dev
+  gather_facts: False
+  tasks:
+    - name: Wait for SSH to be available
+      wait_for:
+        port: 22
+        delay: 10
+        timeout: 100
+        search_regex: OpenSSH
+        host: '{{ansible_ssh_host|default(ansible_host)|default(inventory_hostname)}}'
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: /usr/bin/python3
+
+- name: Install docker
+  become: yes
+  hosts: tag_Environment_dev
+  tasks:
+    - name: Make sure docker is installed
+      yum:
+        name: docker
+        update_cache: yes
+        state: present
+    - name: start docker 
+      systemd:
+        name: docker
+        state: started
+
+- name: Install docker-compose
+  hosts: tag_Environment_dev
+  become: yes
+  tasks:
+    - name: create docker-compose directory
+      file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+    - name: Get architecture of the remote host
+      command: uname -m
+      register: remote_arch
+    - name: Install docker-compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-{{ remote_arch.stdout }}"
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        mode: +x
+     
+- name: Create new linux user 
+  hosts: tag_Environment_dev
+  become: yes
+  vars_files:
+    - project-vars
+  tasks:
+    - name: Create new linux user
+      user:
+        name: josep
+        groups: "{{ user_groups }}"
+        append: yes
+        create_home: yes
+
+- name: Start docker containers
+  hosts: tag_Environment_dev
+  become: yes
+  become_user: josep
+  vars_files:
+    - project-vars
+  tasks:
+    - name: Copy docker-compose file to remote server
+      copy:
+        src: /mnt/c/Users/josep/bootcamp-java-mysql-project/docker-compose-full.yaml
+        dest: /home/josep/docker-compose.yaml
+    - name: Docker login
+      docker_login:
+        username: godswill012
+        password: "{{docker_password}}"
+    - name: Start containers from compose
+      community.docker.docker_compose_v2:
+        project_src: /home/josep

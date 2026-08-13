@@ -1,0 +1,63 @@
+---
+# Play 1 prepares each target server with the Node.js runtime.
+- name: Install node and npm
+  hosts: webservers
+  tasks:
+    # Refresh apt metadata so package installs use current versions.
+    - name: Update apt repo and cache
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+    # Install Node.js and npm required by the application.
+    - name: Install nodejs and npm
+      apt:
+        pkg:
+          - nodejs
+          - npm
+
+
+# Play 2 creates the Linux user that will own and run the app.
+- name: Create new linux user for node app
+  hosts: webservers
+  vars_files:
+    - project-vars
+  tasks:
+    # linux_name comes from project-vars.
+    - name: Create linux user
+      user:
+        name: "{{linux_name}}"
+        comment: Node User
+        groups: sudo
+        append: true
+
+
+# Play 3 deploys the packaged app and starts it as the app user.
+- name: Deploy nodejs app
+  hosts: webservers
+  become: True
+  # Run deployment tasks as the application user instead of root.
+  become_user: "{{linux_name}}"
+  vars_files:
+    - project-vars
+  tasks:
+    # Extract the packaged app archive into the user's home directory.
+    - name: Unpack the nodejs file
+      unarchive:
+        src: "{{location}}/nodejs-app-{{version}}.tgz"
+        dest: "{{user_home_dir}}"
+    # Install dependencies from package.json inside the extracted app.
+    - name: Install dependencies
+      npm:
+        path: "{{user_home_dir}}/package"
+    # Start the app using the npm start script defined in package.json.
+    - name: Start the application
+      command:
+        chdir: "{{user_home_dir}}/package"
+        cmd: npm start
+      # Run in the background so Ansible can continue.
+      async: 1000
+      poll: 0
+    # Check that a Node.js process is present after startup.
+    - name: Ensure app is running
+      shell: ps aux | grep node
+      register: app_status
+    # Print the process list captured in app_status.
+    - debug: msg={{app_status.stdout_lines}}

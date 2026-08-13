@@ -1,0 +1,51 @@
+---
+- name: Install docker
+  become: yes
+  hosts: aws_ec2
+  tasks:
+    - name: Make sure docker is installed
+      yum:
+        name: docker
+        update_cache: yes
+        state: present
+    - name: start docker 
+      systemd:
+        name: docker
+        state: started
+
+- name: Install docker-compose
+  hosts: aws_ec2
+  become: yes
+  tasks:
+    - name: create docker-compose directory
+      file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+    - name: Get architecture of the remote host
+      command: uname -m
+      register: remote_arch
+    - name: Install docker-compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-{{ remote_arch.stdout }}"
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        mode: +x
+     
+- name: Create new linux user
+  hosts: aws_ec2
+  become: yes
+
+  vars_files:
+    - project-vars
+
+  roles:
+    - create_user
+
+- name: Start docker containers
+  hosts: aws_ec2
+  become: yes
+  become_user: josep
+  vars_files:
+    - project-vars
+  roles:
+    - start_containers
+    
