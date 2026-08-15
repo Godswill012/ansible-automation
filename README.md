@@ -120,45 +120,62 @@ The discovered EC2 instances are then configured with Docker and Docker Compose.
 
 ## Architecture
 
+### Architecture A: Terraform + Ansible Infrastructure Automation
+
 ```text
-                         GitHub
-                            |
-                            v
-                    Jenkins Pipeline
-                            |
-                            v
-                        Terraform
-                            |
-                            v
-               Provision AWS Infrastructure
-                            |
-             +--------------+--------------+
-             |                             |
-             v                             v
-        AWS Networking               EC2 Instances
-                                             |
-                                             v
-                                  AWS Dynamic Inventory
-                                             |
-                                             v
-                                  Ansible Control Node
-                                             |
-                       +---------------------+---------------------+
-                       |                                           |
-                       v                                           v
-                 EC2 Managed Node 1                         EC2 Managed Node 2
-                       |                                           |
-                       +---------------------+---------------------+
-                                             |
-                                             v
-                                     Install Docker
-                                             |
-                                             v
-                                    Start Docker Service
-                                             |
-                                             v
-                                  Install Docker Compose
-```
+                    Terraform
+                        |
+                        v
+              Provision AWS Infrastructure
+                        |
+             +----------+----------+
+             |                     |
+             v                     v
+       AWS Networking         EC2 Instances
+                                    |
+                                    v
+                          Wait for SSH Readiness
+                                    |
+                                    v
+                                 Ansible
+                                    |
+                   +----------------+----------------+
+                   |                |                |
+                   v                v                v
+            Install Docker   Docker Compose   Configure Server
+
+
+
+### Architecture B: Jenkins + Ansible Automation
+
+                      GitHub
+                         |
+                         v
+                  Jenkins Pipeline
+                         |
+                         v
+                Ansible Control Node
+                         |
+                         v
+                AWS Dynamic Inventory
+                         |
+                         v
+                 Discover EC2 Nodes
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+       EC2 Managed Node 1    EC2 Managed Node 2
+              |                     |
+              +----------+----------+
+                         |
+                         v
+                  Ansible Playbook
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+        Install Docker      Install Docker Compose
 
 
 # Infrastructure Provisioning with Terraform
@@ -432,6 +449,10 @@ instead of manually maintaining IP addresses.
 
 # Jenkins Pipeline Workflow
 
+The AWS infrastructure and EC2 instances used in this workflow were provisioned
+with Terraform separately. Once the infrastructure was available, Jenkins
+orchestrated the Ansible configuration workflow described below.
+
 ## Step 1: Jenkins Checks Out the GitHub Repository
 
 Jenkins checks out the `feature/ansible` branch containing the application
@@ -456,16 +477,7 @@ Commit message:
 ```
 
 
-## Step 2: Infrastructure Is Provisioned
-
-Terraform provisions the networking resources and dynamically creates the EC2
-instances from the server map.
-
-The resulting infrastructure becomes available to AWS and can then be
-discovered by Ansible through dynamic inventory.
-
-
-## Step 3: Jenkins Copies Ansible Files to the Control Node
+## Step 2: Jenkins Copies Ansible Files to the Control Node
 
 Jenkins transfers the required Ansible configuration to the dedicated control
 node.
@@ -484,7 +496,7 @@ root@143.244.173.156:/root
 ```
 
 
-## Step 4: Jenkins Handles SSH Credentials Securely
+## Step 3: Jenkins Handles SSH Credentials Securely
 
 The EC2 private key is stored in Jenkins Credentials rather than hard-coded
 inside the Jenkinsfile.
@@ -504,7 +516,7 @@ Masking supported pattern matches of $keyfile
 The actual private key is not exposed in the Jenkins console output.
 
 
-## Step 5: Jenkins Prepares the Ansible Control Node
+## Step 4: Jenkins Prepares the Ansible Control Node
 
 Jenkins remotely runs a preparation script on the Ansible Control Node.
 
@@ -526,17 +538,18 @@ python3-boto3 is already the newest version (1.34.46+dfsg-1ubuntu1).
 ```
 
 
-## Step 6: Ansible Dynamically Discovers the EC2 Instances
+## Step 5: Ansible Dynamically Discovers the EC2 Instances
 
-Ansible uses AWS dynamic inventory and boto3 to query AWS.
+Ansible uses AWS dynamic inventory and boto3 to query AWS for the EC2 instances
+that were previously provisioned with Terraform.
 
-Instead of Jenkins or Ansible being configured with manually entered EC2 IP
-addresses, the managed nodes are discovered from AWS dynamically.
+Instead of manually maintaining changing EC2 IP addresses, Ansible dynamically
+discovers the managed nodes from AWS.
 
 
-## Step 7: Jenkins Executes the Ansible Playbook
+## Step 6: Jenkins Executes the Ansible Playbook
 
-Jenkins remotely triggers the Ansible playbook on the control node:
+Jenkins remotely triggers the Ansible playbook on the Ansible Control Node:
 
 ```text
 [Pipeline] sshCommand
@@ -547,9 +560,9 @@ ansible-playbook my-playbook.yaml
 ```
 
 
-## Step 8: Ansible Configures Both EC2 Instances
+## Step 7: Ansible Configures Both EC2 Instances
 
-The playbook successfully reaches both managed nodes.
+The playbook successfully reaches both dynamically discovered managed nodes.
 
 ```text
 PLAY [Install Docker]
