@@ -1,3 +1,11 @@
+# EC2 readiness check
+#
+# Newly provisioned EC2 instances may exist in AWS before SSH is fully ready.
+# Instead of relying on a fixed sleep timer, Ansible waits for port 22 and
+# confirms that OpenSSH is available before starting configuration tasks.
+#
+# This improved an earlier approach where Terraform used local-exec with
+# a fixed delay before launching Ansible.
 ---
 - name: Wait for SSH connection to be available
   hosts: tag_Environment_dev

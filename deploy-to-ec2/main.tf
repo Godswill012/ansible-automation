@@ -132,9 +132,41 @@ resource "aws_instance" "myapp-server" {
   }
 }
   
-  #provisioner "local-exec" {
-    #working_dir = path.module
-    #command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_key_private}  --user ec2-user deploy-docker-new-user.yaml"
-  #}
+# Previous implementation
+#
+# Initially, Ansible was triggered directly after EC2 provisioning using
+# Terraform's local-exec provisioner. The newly created EC2 public IP was
+# passed directly to Ansible as an inline inventory.
+#
+# This approach was later replaced as the project evolved toward a more
+# decoupled workflow using AWS dynamic inventory and Jenkins orchestration.
+#
+# The original implementation is retained below to document the evolution
+# of the automation.
+
+# provisioner "local-exec" {
+#   working_dir = path.module
+#   command = "ansible-playbook --inventory ${self.public_ip}, --private-key ${var.ssh_key_private} --user ec2-user deploy-docker-new-user.yaml"
+# }
 
 
+# Intermediate implementation
+#
+# To reduce coupling between EC2 resource creation and configuration,
+# the Ansible execution was later separated into a null_resource.
+#
+# This kept infrastructure provisioning and post-provisioning configuration
+# as separate concerns.
+#
+# The workflow later evolved further toward Jenkins orchestration and
+# AWS dynamic inventory.
+
+# resource "null_resource" "configure_servers" {
+#   depends_on = [
+#     aws_instance.myapp-server
+#   ]
+#
+#   provisioner "local-exec" {
+#     command = "ansible-playbook ..."
+#   }
+# }
